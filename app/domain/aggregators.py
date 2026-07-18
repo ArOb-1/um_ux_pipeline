@@ -87,7 +87,16 @@ class UMUXAggregator(IAggregator):
         agg.columns = ['avg_umux', 'std_umux', 'count', 'min_umux', 'max_umux']
         agg = agg.reset_index()
 
-        agg = agg.sort_values('avg_umux', ascending=False)
+        total_count = agg['count'].sum()
+        if total_count > 0:
+            agg['percentage'] = (agg['count'] / total_count * 100).round(1)
+        else:
+            agg['percentage'] = 0
+
+        if dimension == 'month':
+            agg = agg.sort_values('month', ascending=True)
+        else:
+            agg = agg.sort_values('avg_umux', ascending=False)
 
         return agg.to_dict('records')
 

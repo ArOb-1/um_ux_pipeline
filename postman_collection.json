@@ -1,0 +1,316 @@
+{
+  "info": {
+    "name": "UMUX Pipeline API",
+    "description": "API для обработки и визуализации UMUX-Lite данных",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has status healthy\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"healthy\");",
+              "});",
+              "",
+              "pm.test(\"Response has service name\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.service).to.eql(\"umux-pipeline\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Get Results",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response status is success\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "});",
+              "",
+              "pm.test(\"Response has total field\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"total\");",
+              "});",
+              "",
+              "pm.test(\"Response has overall stats\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"overall\");",
+              "    pm.expect(jsonData.overall).to.have.property(\"avg_umux\");",
+              "});",
+              "",
+              "pm.test(\"Response has by_product array\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"by_product\");",
+              "    pm.expect(jsonData.by_product).to.be.an(\"array\");",
+              "});",
+              "",
+              "pm.test(\"Response has by_month array\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"by_month\");",
+              "    pm.expect(jsonData.by_month).to.be.an(\"array\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/results",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "results"]
+        }
+      }
+    },
+    {
+      "name": "Get Results by Product",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response status is success\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "});",
+              "",
+              "pm.test(\"Filtered results contain product\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.by_product && jsonData.by_product.length > 0) {",
+              "        pm.expect(jsonData.by_product[0].product).to.eql(pm.variables.get(\"product_name\"));",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/results?product={{product_name}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "results"],
+          "query": [
+            {
+              "key": "product",
+              "value": "{{product_name}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Products List",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response status is success\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "});",
+              "",
+              "pm.test(\"Response has products array\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property(\"products\");",
+              "    pm.expect(jsonData.products).to.be.an(\"array\");",
+              "});",
+              "",
+              "pm.test(\"Products array is not empty after upload\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.products) {",
+              "        pm.expect(jsonData.products.length).to.be.greaterThan(0);",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/products",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "products"]
+        }
+      }
+    },
+    {
+      "name": "Get Dashboard",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200 or 404\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    pm.test(\"Response is HTML\", function () {",
+              "        pm.expect(pm.response.headers.get('content-type')).to.include('text/html');",
+              "    });",
+              "} else {",
+              "    pm.test(\"Error message when dashboard not found\", function () {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData.detail).to.include(\"Дашборд не найден\");",
+              "    });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/dashboard",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "dashboard"]
+        }
+      }
+    },
+    {
+      "name": "Clear Data",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response status is success\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "});",
+              "",
+              "pm.test(\"Response has success message\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.eql(\"Все данные очищены\");",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/clear",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "clear"]
+        }
+      }
+    },
+    {
+      "name": "Get Results by Platform (Filter)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response status is success\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.status).to.eql(\"success\");",
+              "});",
+              "",
+              "pm.test(\"Filtered by platform\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.by_platform && jsonData.by_platform.length > 0) {",
+              "        var platform = pm.variables.get(\"platform_name\");",
+              "        var found = jsonData.by_platform.some(p => p.platform === platform);",
+              "        pm.expect(found).to.be.true;",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/results?platform={{platform_name}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "results"],
+          "query": [
+            {
+              "key": "platform",
+              "value": "{{platform_name}}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "product_name",
+      "value": "Product A",
+      "type": "string"
+    },
+    {
+      "key": "platform_name",
+      "value": "web",
+      "type": "string"
+    }
+  ]
+}

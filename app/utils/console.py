@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class Colors:
     """Цвета для терминала"""
     GREEN = '\033[92m'
@@ -6,10 +9,11 @@ class Colors:
     BLUE = '\033[94m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+    HEADER = '\033[95m'
 
 
 class Console:
-    """Минимальный вывод в консоль"""
+    """Вывод в консоль"""
 
     @staticmethod
     def success(text: str):
@@ -21,14 +25,24 @@ class Console:
 
     @staticmethod
     def warning(text: str):
-        print(f"{Colors.YELLOW}  {text}{Colors.ENDC}")
+        print(f"{Colors.YELLOW} {text}{Colors.ENDC}")
 
     @staticmethod
     def info(text: str):
-        print(f"{Colors.BLUE} {text}{Colors.ENDC}")
+        print(f"{Colors.BLUE}ℹ {text}{Colors.ENDC}")
 
     @staticmethod
-    def header(text: str):
-        print(f"\n{Colors.BOLD}{'='*60}{Colors.ENDC}")
-        print(f"{Colors.BOLD}{text.center(60)}{Colors.ENDC}")
-        print(f"{Colors.BOLD}{'='*60}{Colors.ENDC}\n")
+    def header(text: str, char: str = "=", length: int = 60):
+        print(f"\n{Colors.HEADER}{Colors.BOLD}{char * length}{Colors.ENDC}")
+        print(f"{Colors.HEADER}{Colors.BOLD}"
+              f"{text.center(length)}{Colors.ENDC}")
+        print(f"{Colors.HEADER}{Colors.BOLD}{char * length}{Colors.ENDC}\n")
+
+    @staticmethod
+    def sub_header(text: str):
+        print(f"\n{Colors.BOLD}┌─ {text}{Colors.ENDC}")
+
+    @staticmethod
+    def print_key_value(key: str, value: Any, key_width: int = 20):
+        """Печатает пару ключ-значение"""
+        print(f"  {Colors.BOLD}{key.ljust(key_width)}:{Colors.ENDC} {value}")

@@ -1,52 +1,44 @@
-"""
-API эндпоинты FastAPI
-"""
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import FileResponse
 from typing import List, Optional
 import tempfile
 import os
-import logging
 
 from app.services.pipeline import create_async_pipeline
 from app.api.schemas import UploadResponse, AggregationResponse
-
-logger = logging.getLogger(__name__)
+from app.utils.logger import logger
 
 router = APIRouter()
 
-# Создаем асинхронный пайплайн
 pipeline = create_async_pipeline()
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_files(files: List[UploadFile] = File(...)):
-    """
-    Загрузка и обработка CSV файлов
-    
-    - Поддерживаются CSV с разделителями ',' или ';'
-    - Ожидаются колонки: response_id, submitted_at, product, product_version, score1, score2
-    - Дополнительные колонки: platform, country, user_segment
-    """
+    """Загрузка и обработка CSV файлов"""
     temp_files = []
-    
+
     try:
         for file in files:
-            if not file.filename.endswith(('.csv', '.tsv', '.txt')):
+            if not file.filename.endswith('.csv'):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Неподдерживаемый формат: {file.filename}. Ожидается CSV"
                 )
-            
-            # Сохраняем временный файл
+
+            content = await file.read()
+            if not content or len(content.strip()) == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Файл {file.filename} пуст"
+                )
+
             with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
-                content = await file.read()
                 tmp.write(content)
                 temp_files.append(tmp.name)
-        
-        # Асинхронная обработка
+
         result = await pipeline.process(temp_files)
-        
+
         return UploadResponse(
             status="success",
             total_valid=result.total_valid,
@@ -55,17 +47,18 @@ async def upload_files(files: List[UploadFile] = File(...)):
             processing_time=result.processing_time,
             files_processed=result.files_processed
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Ошибка обработки: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # Удаляем временные файлы
         for f in temp_files:
             try:
                 os.unlink(f)
-            except:
-                pass
+            except Exception as e:
+                logger.error(str(e))
 
 
 @router.get("/results", response_model=AggregationResponse)
@@ -83,9 +76,9 @@ async def get_results(
             filters['platform'] = platform
         if month:
             filters['month'] = month
-        
+
         aggregations = await pipeline.repository.get_aggregations(filters)
-        
+
         return AggregationResponse(
             status="success",
             total=aggregations.get('total', 0),
@@ -95,7 +88,7 @@ async def get_results(
             by_month=aggregations.get('by_month', []),
             by_platform=aggregations.get('by_platform', [])
         )
-        
+
     except Exception as e:
         logger.error(f"Ошибка получения результатов: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -104,17 +97,19 @@ async def get_results(
 @router.get("/dashboard")
 async def get_dashboard():
     """Получение HTML дашборда"""
-    dashboard_path = "dashboard.html"
-    if not os.path.exists(dashboard_path):
-        raise HTTPException(
-            status_code=404,
-            detail="Дашборд не найден. Сначала загрузите данные через /upload"
-        )
-    
-    return FileResponse(
-        dashboard_path,
-        media_type="text/html",
-        filename="dashboard.html"
+    possible_paths = ["results/dashboard.html", "dashboard.html"]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return FileResponse(
+                path,
+                media_type="text/html",
+                filename="dashboard.html"
+            )
+
+    raise HTTPException(
+        status_code=404,
+        detail="Дашборд не найден. Сначала загрузите данные через /upload"
     )
 
 

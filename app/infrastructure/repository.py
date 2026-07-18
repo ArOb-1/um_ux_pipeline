@@ -147,7 +147,6 @@ class AsyncSQLiteRepository(IRepository):
             await session.close()
 
     async def save_rejected(self, df: pd.DataFrame) -> int:
-        """Сохраняет отбракованные записи"""
         if df.empty:
             return 0
 
@@ -155,36 +154,66 @@ class AsyncSQLiteRepository(IRepository):
         try:
             count = 0
             for _, row in df.iterrows():
+                submitted_at = row.get('submitted_at')
+                if pd.isna(submitted_at) or submitted_at is None:
+                    submitted_at = None
+                else:
+                    try:
+                        if isinstance(submitted_at, str):
+                            submitted_at = pd.to_datetime(submitted_at,
+                                                          errors='coerce')
+                            if pd.isna(submitted_at):
+                                submitted_at = None
+                        if hasattr(submitted_at, 'to_pydatetime'):
+                            submitted_at = submitted_at.to_pydatetime()
+                        if not isinstance(submitted_at, datetime):
+                            submitted_at = None
+                    except Exception:
+                        submitted_at = None
+
                 score1 = row.get('score1')
-                if pd.notna(score1) and score1 is not None:
+                if pd.isna(score1) or score1 is None:
+                    score1 = None
+                else:
                     try:
                         score1 = int(float(score1))
                     except (ValueError, TypeError):
                         score1 = None
-                else:
-                    score1 = None
 
                 score2 = row.get('score2')
-                if pd.notna(score2) and score2 is not None:
+                if pd.isna(score2) or score2 is None:
+                    score2 = None
+                else:
                     try:
                         score2 = int(float(score2))
                     except (ValueError, TypeError):
                         score2 = None
-                else:
-                    score2 = None
+
+                response_id = str(row.get('response_id', '')) if pd.notna(row.get('response_id')) else ''
+                product = str(row.get('product', '')) if pd.notna(row.get('product')) else ''
+                product_version = str(row.get('product_version', '')) if pd.notna(row.get('product_version')) else ''
+                platform = str(row.get('platform', '')) if pd.notna(row.get('platform')) else ''
+                country = str(row.get('country', '')) if pd.notna(row.get('country')) else ''
+                user_segment = str(row.get('user_segment', '')) if pd.notna(row.get('user_segment')) else ''
+                rejection_reason = str(row.get('rejection_reason', 'unknown'))
+
+                try:
+                    raw_data = row.to_json() if hasattr(row, 'to_json') else json.dumps(row.to_dict(), default=str)
+                except Exception:
+                    raw_data = json.dumps(row.to_dict(), default=str)
 
                 rejected = RejectedResponse(
-                    response_id=str(row.get('response_id', '')) if pd.notna(row.get('response_id')) else '',
-                    submitted_at=row.get('submitted_at') if pd.notna(row.get('submitted_at')) else None,
-                    product=str(row.get('product', '')) if pd.notna(row.get('product')) else '',
-                    product_version=str(row.get('product_version', '')) if pd.notna(row.get('product_version')) else '',
-                    platform=str(row.get('platform', '')) if pd.notna(row.get('platform')) else '',
-                    country=str(row.get('country', '')) if pd.notna(row.get('country')) else '',
-                    user_segment=str(row.get('user_segment', '')) if pd.notna(row.get('user_segment')) else '',
+                    response_id=response_id,
+                    submitted_at=submitted_at,
+                    product=product,
+                    product_version=product_version,
+                    platform=platform,
+                    country=country,
+                    user_segment=user_segment,
                     score1=score1,
                     score2=score2,
-                    rejection_reason=str(row.get('rejection_reason', 'unknown')),
-                    raw_data=row.to_json() if hasattr(row, 'to_json') else json.dumps(row.to_dict(), default=str),
+                    rejection_reason=rejection_reason,
+                    raw_data=raw_data,
                     processed_at=datetime.utcnow()
                 )
                 session.add(rejected)
@@ -201,7 +230,8 @@ class AsyncSQLiteRepository(IRepository):
         finally:
             await session.close()
 
-    async def get_aggregations(self, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def get_aggregations(self,
+                               filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         session = await self._get_session()
         try:
             query = select(Response)
@@ -231,25 +261,27 @@ class AsyncSQLiteRepository(IRepository):
             if total == 0:
                 return {'total': 0, 'overall': {'avg_umux': 0, 'count': 0}}
 
-            stats_query = select(
-                func.avg(Response.umux_score).label('avg'),
-                func.stddev(Response.umux_score).label('std'),
-                func.min(Response.umux_score).label('min'),
-                func.max(Response.umux_score).label('max')
-            )
+            values_query = select(Response.umux_score)
             if conditions:
-                stats_query = stats_query.where(and_(*conditions))
+                values_query = values_query.where(and_(*conditions))
 
-            stats_result = await session.execute(stats_query)
-            stats_row = stats_result.one()
+            result = await session.execute(values_query)
+            values = [row[0] for row in result.all() if row[0] is not None]
+
+            if not values:
+                return {'total': 0, 'overall': {'avg_umux': 0, 'count': 0}}
+
+            avg_val = sum(values) / len(values)
+            variance = sum((x - avg_val) ** 2 for x in values) / len(values)
+            std_val = variance ** 0.5
 
             result = {
                 'total': total,
                 'overall': {
-                    'avg_umux': float(stats_row[0] or 0),
-                    'std_umux': float(stats_row[1] or 0),
-                    'min_umux': float(stats_row[2] or 0),
-                    'max_umux': float(stats_row[3] or 0),
+                    'avg_umux': round(avg_val, 2),
+                    'std_umux': round(std_val, 2),
+                    'min_umux': round(min(values), 2),
+                    'max_umux': round(max(values), 2),
                     'count': total
                 }
             }
@@ -257,23 +289,35 @@ class AsyncSQLiteRepository(IRepository):
             product_query = select(
                 Response.product,
                 func.avg(Response.umux_score).label('avg'),
-                func.count(Response.id).label('count'),
-                func.stddev(Response.umux_score).label('std')
+                func.count(Response.id).label('count')
             )
             if conditions:
                 product_query = product_query.where(and_(*conditions))
             product_query = product_query.group_by(Response.product)
 
             product_result = await session.execute(product_query)
-            result['by_product'] = [
-                {
+            result['by_product'] = []
+            for p in product_result.all():
+                # Получаем значения для этого продукта для расчета std
+                val_query = select(Response.umux_score).where(Response.product == p[0])
+                if conditions:
+                    val_query = val_query.where(and_(*conditions))
+                val_res = await session.execute(val_query)
+                p_values = [r[0] for r in val_res.all() if r[0] is not None]
+
+                if p_values:
+                    p_avg = sum(p_values) / len(p_values)
+                    p_var = sum((x - p_avg) ** 2 for x in p_values) / len(p_values)
+                    p_std = p_var ** 0.5
+                else:
+                    p_std = 0
+
+                result['by_product'].append({
                     'product': p[0],
-                    'avg_umux': float(p[1]),
+                    'avg_umux': round(float(p[1]), 2) if p[1] else 0,
                     'count': p[2],
-                    'std_umux': float(p[3]) if p[3] else 0
-                }
-                for p in product_result.all()
-            ]
+                    'std_umux': round(p_std, 2)
+                })
 
             product_version_query = select(
                 Response.product,
@@ -282,15 +326,21 @@ class AsyncSQLiteRepository(IRepository):
                 func.count(Response.id).label('count')
             )
             if conditions:
-                product_version_query = product_version_query.where(and_(*conditions))
-            product_version_query = product_version_query.group_by(Response.product, Response.product_version)
+                product_version_query = (
+                    product_version_query.where(and_(*conditions))
+                )
+            product_version_query = (
+                product_version_query.group_by(Response.product,
+                                               Response.product_version)
+            )
 
-            product_version_result = await session.execute(product_version_query)
+            product_version_result = (await
+                                      session.execute(product_version_query))
             result['by_product_version'] = [
                 {
                     'product': p[0],
                     'version': p[1],
-                    'avg_umux': float(p[2]),
+                    'avg_umux': round(float(p[2]), 2) if p[2] else 0,
                     'count': p[3]
                 }
                 for p in product_version_result.all()
@@ -303,13 +353,15 @@ class AsyncSQLiteRepository(IRepository):
             )
             if conditions:
                 month_query = month_query.where(and_(*conditions))
-            month_query = month_query.group_by(Response.month).order_by(Response.month)
+            month_query = (month_query.
+                           group_by(Response.month).
+                           order_by(Response.month))
 
             month_result = await session.execute(month_query)
             result['by_month'] = [
                 {
                     'month': m[0],
-                    'avg_umux': float(m[1]),
+                    'avg_umux': round(float(m[1]), 2) if m[1] else 0,
                     'count': m[2]
                 }
                 for m in month_result.all()
@@ -328,7 +380,7 @@ class AsyncSQLiteRepository(IRepository):
             result['by_platform'] = [
                 {
                     'platform': p[0],
-                    'avg_umux': float(p[1]),
+                    'avg_umux': round(float(p[1]), 2) if p[1] else 0,
                     'count': p[2]
                 }
                 for p in platform_result.all()

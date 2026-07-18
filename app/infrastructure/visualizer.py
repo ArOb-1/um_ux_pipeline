@@ -1,73 +1,70 @@
-"""
-Визуализация данных с использованием Plotly
-"""
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 from typing import Dict, Any
 import base64
-import logging
 from pathlib import Path
 
 from ..core.interfaces import IVisualizer
-
-logger = logging.getLogger(__name__)
+from app.utils.logger import logger
 
 
 class PlotlyVisualizer(IVisualizer):
     """Визуализатор с использованием Plotly"""
-    
+
     PLATFORM_COLORS = {
         'web': '#1f77b4',
         'android': '#ff7f0e',
         'ios': '#2ca02c'
     }
-    
+
     def __init__(self, theme: str = 'plotly_white'):
         self.theme = theme
-    
-    def create_dashboard(self, df: pd.DataFrame, aggregations: Dict[str, Any]) -> Dict[str, str]:
+
+    def create_dashboard(self,
+                         df: pd.DataFrame,
+                         aggregations: Dict[str, Any]) -> Dict[str, str]:
         """Создает дашборд с графиками"""
         visualizations = {}
-        
+
         if df.empty or 'umux_score' not in df.columns:
             logger.warning("Нет данных для визуализации")
             return visualizations
-        
+
         try:
             logger.info("Создание product_chart")
             fig1 = self._create_product_chart(aggregations)
             visualizations['product_chart'] = self._fig_to_base64(fig1)
-            
+
             logger.info("Создание monthly trend")
             fig2 = self._create_monthly_trend(aggregations)
             visualizations['monthly_trend'] = self._fig_to_base64(fig2)
-            
+
             logger.info("Создание platform chart")
             fig3 = self._create_platform_chart(aggregations)
             visualizations['platform_chart'] = self._fig_to_base64(fig3)
-            
+
             logger.info("Создание distribution")
             fig4 = self._create_distribution(df)
             visualizations['distribution'] = self._fig_to_base64(fig4)
-            
+
             logger.info(f"Создано {len(visualizations)} графиков")
-            
+
         except Exception as e:
             logger.error(f"Ошибка создания дашборда: {e}")
-        
+
         return visualizations
-    
+
     def _create_product_chart(self, aggregations: Dict[str, Any]) -> go.Figure:
         """График среднего UMUX по продуктам"""
         data = aggregations.get('by_product', [])
-        
+
         if not data:
             return go.Figure()
-        
+
         df = pd.DataFrame(data)
         df = df.sort_values('avg_umux', ascending=False)
-        
+
         colors = []
         for val in df['avg_umux']:
             if val >= 80:
@@ -76,9 +73,9 @@ class PlotlyVisualizer(IVisualizer):
                 colors.append('#ff7f0e')
             else:
                 colors.append('#d62728')
-        
+
         fig = go.Figure()
-        
+
         fig.add_trace(go.Bar(
             x=df['product'],
             y=df['avg_umux'],
@@ -92,7 +89,7 @@ class PlotlyVisualizer(IVisualizer):
                 visible=True
             )
         ))
-        
+
         fig.update_layout(
             title='Средний UMUX по продуктам',
             xaxis_title='Продукт',
@@ -101,24 +98,30 @@ class PlotlyVisualizer(IVisualizer):
             height=400,
             showlegend=False
         )
-        
-        fig.add_hline(y=80, line_dash="dash", line_color="#2ca02c", annotation_text="Целевой уровень (80)")
-        fig.add_hline(y=60, line_dash="dash", line_color="#d62728", annotation_text="Критический уровень (60)")
-        
+
+        fig.add_hline(y=80,
+                      line_dash="dash",
+                      line_color="#2ca02c",
+                      annotation_text="Целевой уровень (80)")
+        fig.add_hline(y=60,
+                      line_dash="dash",
+                      line_color="#d62728",
+                      annotation_text="Критический уровень (60)")
+
         return fig
-    
+
     def _create_monthly_trend(self, aggregations: Dict[str, Any]) -> go.Figure:
         """Динамика UMUX по месяцам"""
         data = aggregations.get('by_month', [])
-        
+
         if not data:
             return go.Figure()
-        
+
         df = pd.DataFrame(data)
         df = df.sort_values('month')
-        
+
         fig = go.Figure()
-        
+
         fig.add_trace(go.Scatter(
             x=df['month'],
             y=df['avg_umux'],
@@ -127,7 +130,7 @@ class PlotlyVisualizer(IVisualizer):
             line=dict(color='#1f77b4', width=3),
             marker=dict(size=10, color='#1f77b4')
         ))
-        
+
         fig.update_layout(
             title='Динамика UMUX по месяцам',
             xaxis_title='Месяц',
@@ -136,21 +139,28 @@ class PlotlyVisualizer(IVisualizer):
             height=400,
             hovermode='x unified'
         )
-        
-        fig.add_hline(y=80, line_dash="dash", line_color="#2ca02c", annotation_text="Целевой уровень (80)")
-        fig.add_hline(y=60, line_dash="dash", line_color="#d62728", annotation_text="Критический уровень (60)")
-        
+
+        fig.add_hline(y=80,
+                      line_dash="dash",
+                      line_color="#2ca02c",
+                      annotation_text="Целевой уровень (80)")
+        fig.add_hline(y=60,
+                      line_dash="dash",
+                      line_color="#d62728",
+                      annotation_text="Критический уровень (60)")
+
         return fig
-    
-    def _create_platform_chart(self, aggregations: Dict[str, Any]) -> go.Figure:
+
+    def _create_platform_chart(self,
+                               aggregations: Dict[str, Any]) -> go.Figure:
         """Сравнение по платформам с одинаковыми цветами"""
         data = aggregations.get('by_platform', [])
-        
+
         if not data:
             return go.Figure()
-        
+
         df = pd.DataFrame(data)
-        
+
         colors = []
         for p in df['platform']:
             p_lower = p.lower()
@@ -158,13 +168,13 @@ class PlotlyVisualizer(IVisualizer):
                 colors.append(self.PLATFORM_COLORS[p_lower])
             else:
                 colors.append('#999999')
-        
+
         fig = make_subplots(
             rows=1, cols=2,
             specs=[[{'type': 'bar'}, {'type': 'pie'}]],
             subplot_titles=('Средний UMUX', 'Распределение ответов')
         )
-        
+
         fig.add_trace(
             go.Bar(
                 x=df['platform'],
@@ -176,7 +186,7 @@ class PlotlyVisualizer(IVisualizer):
             ),
             row=1, col=1
         )
-        
+
         fig.add_trace(
             go.Pie(
                 labels=df['platform'],
@@ -188,59 +198,35 @@ class PlotlyVisualizer(IVisualizer):
             ),
             row=1, col=2
         )
-        
+
         fig.update_layout(
             title='Сравнение по платформам',
             template=self.theme,
             height=400,
             showlegend=False
         )
-        
+
         return fig
-    
+
     def _create_distribution(self, df: pd.DataFrame) -> go.Figure:
-        """Распределение UMUX скора"""
+        """Распределение UMUX скора (только гистограмма)"""
         if 'umux_score' not in df.columns:
             return go.Figure()
-        
+
         scores = df['umux_score'].dropna()
-        
+
         if len(scores) == 0:
             return go.Figure()
-        
-        fig = make_subplots(
-            rows=1, cols=2,
-            subplot_titles=('Гистограмма', 'Box-plot')
-        )
-        
-        fig.add_trace(
-            go.Histogram(
-                x=scores,
-                nbinsx=20,
-                marker_color='#1f77b4',
-                name='Распределение'
-            ),
-            row=1, col=1
-        )
-        
-        fig.add_trace(
-            go.Box(
-                y=scores,
-                name='UMUX Score',
-                boxmean='sd',
-                marker_color='#1f77b4',
-                line_color='#1f77b4'
-            ),
-            row=1, col=2
-        )
-        
-        fig.update_layout(
-            title='Распределение UMUX скора',
-            template=self.theme,
-            height=400,
-            showlegend=False
-        )
-        
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Histogram(
+            x=scores,
+            nbinsx=20,
+            marker_color='#1f77b4',
+            name='Распределение'
+        ))
+
         mean_val = scores.mean()
         fig.add_vline(
             x=mean_val,
@@ -248,46 +234,57 @@ class PlotlyVisualizer(IVisualizer):
             line_color="#d62728",
             annotation_text=f"Средний: {mean_val:.1f}"
         )
-        
+
+        fig.update_layout(
+            title='Распределение UMUX скора',
+            xaxis_title='UMUX Score',
+            yaxis_title='Количество ответов',
+            template=self.theme,
+            height=400,
+            showlegend=False
+        )
+
         return fig
-    
+
     def _fig_to_base64(self, fig: go.Figure) -> str:
         """Конвертирует фигуру Plotly в base64 строку"""
         try:
-            # Пробуем экспортировать как PNG
-            img_bytes = fig.to_image(format="png", width=800, height=500, scale=1)
-            # Кодируем в base64 строку (без декодирования в UTF-8!)
+            img_bytes = fig.to_image(format="png",
+                                     width=800,
+                                     height=500,
+                                     scale=1)
             return base64.b64encode(img_bytes).decode('ascii')
         except Exception as e:
             logger.warning(f"Не удалось экспортировать PNG: {e}")
             return ""
-    
-    def save_dashboard(self, visualizations: Dict[str, str], filename: str = "dashboard.html") -> str:
+
+    def save_dashboard(self,
+                       visualizations: Dict[str, str],
+                       filename: str = "dashboard.html") -> str:
         """Сохраняет дашборд как HTML файл и возвращает HTML контент"""
         if not visualizations:
             logger.warning("Нет визуализаций для сохранения")
             return ""
-        
+
         results_dir = Path("results")
         results_dir.mkdir(exist_ok=True)
         filepath = results_dir / filename
-        
+
         logger.info(f"Сохранение дашборда в {filepath}")
-        
+
         try:
             html_parts = []
-            
+
             for name, b64_data in visualizations.items():
                 if not b64_data:
                     continue
-                
-                # Всегда вставляем как PNG изображение с base64
+
                 html_parts.append(
                     f'<div class="chart"><h3>{name}</h3>'
                     f'<img src="data:image/png;base64,{b64_data}" style="max-width:100%"/>'
                     f'</div>'
                 )
-            
+
             if html_parts:
                 html_template = f"""
                 <!DOCTYPE html>
@@ -320,7 +317,7 @@ class PlotlyVisualizer(IVisualizer):
                 </body>
                 </html>
                 """
-                
+
                 with open(filepath, 'w', encoding='utf-8') as f:
                     f.write(html_template)
                 logger.info(f"Дашборд сохранен в {filepath}")
@@ -328,7 +325,7 @@ class PlotlyVisualizer(IVisualizer):
             else:
                 logger.warning("Не удалось сохранить дашборд")
                 return ""
-                
+
         except Exception as e:
             logger.error(f"Ошибка сохранения дашборда: {e}")
             return ""
