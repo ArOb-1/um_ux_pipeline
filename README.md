@@ -8,12 +8,13 @@
 
 
 ## Технологии
-Python 3.12+
-FastAPI — REST API
-Pandas — обработка данных
-SQLAlchemy + aiosqlite — асинхронная работа с БД
-Plotly — визуализация
-Pytest — тестирование
+
+* Python 3.12+
+* FastAPI — REST API
+* Pandas — обработка данных
+* SQLAlchemy + aiosqlite — асинхронная работа с БД
+* Plotly — визуализация
+* Pytest — тестирование
 
 ## Установка
 
@@ -90,7 +91,9 @@ curl "http://localhost:8000/api/v1/results?product=Product%20A"
 
 Чтобы запустить тесты просто введите из корневой директории:
 
+```bash
 pytest
+```
 
 
 ## Формат входных данных
@@ -170,7 +173,6 @@ results/umux.db — SQLite база данных
 Результаты на тестовых данных
 
 ```text
-
 Валидных записей: 1121
 
 Отбраковано: 439
