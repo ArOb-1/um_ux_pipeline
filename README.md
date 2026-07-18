@@ -34,7 +34,8 @@ pip install -r requirements.txt
 
 
 Запуск
-API сервер
+
+API сервера
 
 bash
 
